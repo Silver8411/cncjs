@@ -1,0 +1,72 @@
+;Define tool first height for all WCS for future references
+; Before launch macro, Set Z in G54 
+; Make sure that you are in G54 WCS
+; Need to launch this macro again when machine is switched off, program is closed or when you manually abort g-code
+
+; Wait until the planner queue is empty
+%wait
+
+; Set user-defined variables
+%global.state.SAFE_HEIGHT = -3 ; clear everything height(negative number, distance below Z limit)
+%global.state.PROBE_X_LOCATION = -2; machine coordinates
+%global.state.PROBE_Y_LOCATION = -795 ; machine coordinates
+%global.state.PROBE_Z_LOCATION = -36 ; machine coordinates --> lower this (more negative) to start the probing closer to wasteboard
+%global.state.TOOLC_X_LOCATION = -422 ; tool change location
+%global.state.TOOLC_Y_LOCATION = -833 ; Tool change location
+%global.state.TOOLC_Z_LOCATION = -10 ; Tool change location
+
+%global.state.PROBE_DISTANCE = 100 ; Probing distance
+%global.state.PROBE_RAPID_FEEDRATE = 350 ; mm/min ; Speed how fast does first probe
+
+%wait
+
+; Keep a backup of current work position
+%X0=posx, Y0=posy, Z0=posz
+
+; Save modal state
+%WCS = modal.wcs
+%PLANE = modal.plane
+%UNITS = modal.units
+%DISTANCE = modal.distance
+%FEEDRATE = modal.feedrate
+%SPINDLE = modal.spindle
+%COOLANT = modal.coolant
+
+G21 ; metric
+M5   ; Stop spindle
+G90	; Absolute positioning
+
+%wait
+
+; Move to tool change location
+G53 G0 Z[global.state.SAFE_HEIGHT]
+G53 X[global.state.TOOLC_X_LOCATION] Y[global.state.TOOLC_Y_LOCATION]
+%wait
+
+; Pause for tool loading
+M0
+
+; Move to probe location
+G53 G0 Z[global.state.SAFE_HEIGHT]
+G53 X[global.state.PROBE_X_LOCATION] Y[global.state.PROBE_Y_LOCATION]
+%wait
+
+; Start probing sequence for G54
+G49 ; Cancel tool length offset
+G53 Z[global.state.PROBE_Z_LOCATION]
+G91
+G38.2 Z-[global.state.PROBE_DISTANCE] F[global.state.PROBE_RAPID_FEEDRATE]; fast probe (so it doesn't take forever)
+G0 Z2
+G38.2 Z-5 F40	; "dial-it-in" probes
+G38.4 Z10 F20
+G4 P0.5
+G90
+G43.1 Z0
+%global.state.TOOL_REFERENCE54 = mposz	; establish a global tool reference work offset
+%wait
+(TOOL_REFERENCE54 = [global.state.TOOL_REFERENCE54])
+
+; Go to work zero at a SAFE_HEIGHT for Z and restore modal state
+G90
+G53 G0 Z[global.state.SAFE_HEIGHT] X-3 Y-3
+[WCS] [PLANE] [UNITS] [DISTANCE] [FEEDRATE] [SPINDLE] [COOLANT]

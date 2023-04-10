@@ -1,0 +1,75 @@
+; Tool change for all WCS G54-59
+; This macro allows you to use a fixed machine location for a tool change/probe. Ideal when your workpiece surface has been carved away.
+; This macro changes the tool with G43.1, so different offsets apply in all WCS
+; When you have started this macro, the machine applies a dynamic tool offset with G43.1
+; To disable G43.1, type G49 in the command, or the machine is shut down, the program is closed, or you manually stop G-code
+; This macro is ideal for running tool changes that work in all WCS
+; Make sure you are in the desired WCS before doing a tool change
+
+; Wait until the planner queue is empty
+%wait
+
+; Use variables from first macro
+%SAFE_HEIGHT = global.state.SAFE_HEIGHT
+%PROBE_DISTANCE = global.state.PROBE_DISTANCE
+%PROBE_RAPID_FEEDRATE = global.state.PROBE_RAPID_FEEDRATE
+
+%wait
+
+; Backup current work position
+%X0 = posx, Y0 = posy, Z0 = posz
+
+; Save modal state
+%WCS = modal.wcs
+%PLANE = modal.plane
+%UNITS = modal.units
+%DISTANCE = modal.distance
+%FEEDRATE = modal.feedrate
+%SPINDLE = modal.spindle
+%COOLANT = modal.coolant
+
+; Set metric units, stop spindle, and use absolute positioning
+G21
+M5
+G90
+
+; Move to tool change location
+G53 G0 Z[global.state.SAFE_HEIGHT]
+G53 X[global.state.TOOLC_X_LOCATION] Y[global.state.TOOLC_Y_LOCATION]
+
+%wait
+
+; Pause for manual tool change & probing
+M0
+
+; Move to probe location
+G53 G0 Z[global.state.SAFE_HEIGHT]
+G53 X[global.state.PROBE_X_LOCATION] Y[global.state.PROBE_Y_LOCATION]
+
+%wait
+
+; Cancel tool length offset and start probing sequence
+G49
+G53 Z[global.state.PROBE_Z_LOCATION]
+G54
+G91
+G38.2 Z-[global.state.PROBE_DISTANCE] F[global.state.PROBE_RAPID_FEEDRATE]
+G0 Z2
+G38.2 Z-5 F40
+G38.4 Z10 F20
+G4 P0.5
+G90
+G43.1 Z[mposz - global.state.TOOL_REFERENCE54] ; Apply tool offset using machine coordinates
+
+; Move to safe height
+G90
+G53 G0 Z[global.state.SAFE_HEIGHT]
+
+%wait
+
+; Return to work zero at a safe height for Z
+G54
+G0 X0 Y0
+
+; Restore modal state
+[WCS] [PLANE] [UNITS] [DISTANCE] [FEEDRATE] [SPINDLE] [COOLANT]
